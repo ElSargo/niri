@@ -110,6 +110,7 @@ pub enum Action {
     DebugToggleDamage,
     Spawn(#[knuffel(arguments)] Vec<String>),
     SpawnSh(#[knuffel(argument)] String),
+    FocusOrSpawn(#[knuffel(arguments)] Vec<String>),
     DoScreenTransition(#[knuffel(property(name = "delay-ms"))] Option<u16>),
     #[knuffel(skip)]
     ConfirmScreenshot {

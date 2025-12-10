@@ -49,7 +49,7 @@ use crate::niri::{CastTarget, PointerVisibility, State};
 use crate::ui::mru::{WindowMru, WindowMruUi};
 use crate::ui::screenshot_ui::ScreenshotUi;
 use crate::utils::spawning::{spawn, spawn_sh};
-use crate::utils::{center, get_monotonic_time, ResizeEdge};
+use crate::utils::{center, get_monotonic_time, with_toplevel_role, ResizeEdge};
 
 pub mod backend_ext;
 pub mod move_grab;
@@ -697,6 +697,23 @@ impl State {
             Action::SpawnSh(command) => {
                 let (token, _) = self.niri.activation_state.create_external_token(None);
                 spawn_sh(command, Some(token.clone()));
+            }
+            Action::FocusOrSpawn(items) => {
+                let [target_app_id, spawn_args @ ..] = items.as_slice() else {
+                    return;
+                };
+
+                let matching_windows = self.niri.layout.windows().filter(|(_mon, mapped)| {
+                    with_toplevel_role(mapped.toplevel(), |role| role.app_id.clone()).as_ref()
+                        == Some(target_app_id)
+                });
+
+                let Some(window) = matching_windows.map(|(_, m)| m.window.clone()).next() else {
+                    let (token, _) = self.niri.activation_state.create_external_token(None);
+                    spawn(spawn_args.to_vec(), Some(token.clone()));
+                    return;
+                };
+                self.focus_window(&window);
             }
             Action::DoScreenTransition(delay_ms) => {
                 self.backend.with_primary_renderer(|renderer| {
