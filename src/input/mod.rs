@@ -698,21 +698,30 @@ impl State {
                 let (token, _) = self.niri.activation_state.create_external_token(None);
                 spawn_sh(command, Some(token.clone()));
             }
-            Action::FocusOrSpawn(items) => {
+            Action::FocusOrSpawn(focused_workspaces_only, focused_monitor_only, items) => {
+                println!("{focused_workspaces_only:?} {focused_monitor_only:?} {items:?}");
+
                 let [target_app_id, spawn_args @ ..] = items.as_slice() else {
                     return;
                 };
 
-                let matching_windows = self.niri.layout.windows().filter(|(_mon, mapped)| {
+                let Some(candidate_windows) =
+                    self.narrow_window_candidates(focused_workspaces_only, focused_monitor_only)
+                else {
+                    return;
+                };
+                let matching_windows = candidate_windows.iter().filter(|mapped| {
                     with_toplevel_role(mapped.toplevel(), |role| role.app_id.clone()).as_ref()
                         == Some(target_app_id)
                 });
 
-                let Some(window) = matching_windows.map(|(_, m)| m.window.clone()).next() else {
+                let Some(window) = matching_windows.map(|m| m.window.clone()).next() else {
+                    println!("Spawning: {spawn_args:?}");
                     let (token, _) = self.niri.activation_state.create_external_token(None);
                     spawn(spawn_args.to_vec(), Some(token.clone()));
                     return;
                 };
+                println!("focusing");
                 self.focus_window(&window);
             }
             Action::DoScreenTransition(delay_ms) => {
@@ -2392,6 +2401,30 @@ impl State {
                 }
             }
         }
+    }
+
+    fn narrow_window_candidates(
+        &mut self,
+        focused_workspaces_only: Option<bool>,
+        focused_monitor_only: Option<bool>,
+    ) -> Option<Vec<&crate::window::Mapped>> {
+        let filter_by_monitor = focused_monitor_only.unwrap_or(true);
+        let filter_by_workspace = focused_workspaces_only.unwrap_or(true);
+
+        let candidate_windows: Vec<_> = if filter_by_monitor && filter_by_workspace {
+            self.niri
+                .layout
+                .monitors()
+                .flat_map(|m| m.active_workspace_ref().windows())
+                .collect()
+        } else if filter_by_monitor {
+            self.niri.layout.active_monitor_ref()?.windows().collect()
+        } else if filter_by_workspace {
+            self.niri.layout.active_workspace()?.windows().collect()
+        } else {
+            self.niri.layout.windows().map(|(_, m)| m).collect()
+        };
+        Some(candidate_windows)
     }
 
     fn on_pointer_motion<I: InputBackend>(&mut self, event: I::PointerMotionEvent) {
