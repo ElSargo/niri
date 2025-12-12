@@ -45,7 +45,7 @@ use self::spatial_movement_grab::SpatialMovementGrab;
 #[cfg(feature = "dbus")]
 use crate::dbus::freedesktop_a11y::KbMonBlock;
 use crate::layout::scrolling::ScrollDirection;
-use crate::layout::workspace::WorkspaceId;
+use crate::layout::workspace::{Workspace, WorkspaceId};
 use crate::layout::{ActivateWindow, LayoutElement as _};
 use crate::niri::{CastTarget, PointerVisibility, State};
 use crate::ui::mru::{WindowMru, WindowMruUi};
@@ -704,6 +704,33 @@ impl State {
                     .then_some(self.active_working_directory())
                     .flatten();
                 spawn(command, Some(token), working_dir);
+            }
+            Action::WorkspaceAt(directory) => {
+                let find = self
+                    .niri
+                    .layout
+                    .workspaces()
+                    .find(|(_, _, w)| w.working_directory.as_deref() == Some(directory.as_str()))
+                    .map(|(_, _, w)| w);
+                if let Some(workspace) = find {
+                    if let Some((index, _)) = self.niri.layout.find_workspace_by_id(workspace.id())
+                    {
+                        self.niri.layout.switch_workspace(index);
+                    }
+                } else {
+                    let Some(mon) = self.niri.layout.active_monitor() else {
+                        return;
+                    };
+                    let mut workspace = Workspace::new(
+                        mon.output().clone(),
+                        self.niri.clock.clone(),
+                        mon.base_options.clone(),
+                    );
+
+                    workspace.working_directory = Some(directory.into());
+                    mon.add_workspace_bottom();
+                    mon.insert_workspace(workspace, mon.workspaces.len(), true);
+                };
             }
             Action::SpawnSh(home, command) => {
                 let token = self

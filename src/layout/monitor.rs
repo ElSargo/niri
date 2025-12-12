@@ -62,7 +62,7 @@ pub struct Monitor<W: LayoutElement> {
     // let you do this at the moment.
     working_area: Rectangle<f64, Logical>,
     // Must always contain at least one.
-    pub(super) workspaces: Vec<Workspace<W>>,
+    pub workspaces: Vec<Workspace<W>>,
     /// Index of the currently active workspace.
     pub(super) active_workspace_idx: usize,
     /// ID of the previously active workspace.
@@ -82,7 +82,7 @@ pub struct Monitor<W: LayoutElement> {
     /// Clock for driving animations.
     pub(super) clock: Clock,
     /// Configurable properties of the layout as received from the parent layout.
-    pub(super) base_options: Rc<Options>,
+    pub base_options: Rc<Options>,
     /// Configurable properties of the layout.
     pub(super) options: Rc<Options>,
     /// Layout config overrides for this monitor.

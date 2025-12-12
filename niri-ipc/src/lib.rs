@@ -226,7 +226,12 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long))]
         workspace_id: Option<u64>,
     },
-
+    /// Switches to a workspace with a given working directory, otherwise creates it
+    WorkspaceAt {
+        /// The directory to switch to
+        #[cfg_attr(feature = "clap", arg(required = true))]
+        directory: String,
+    },
     /// Do a screen transition.
     DoScreenTransition {
         /// Delay in milliseconds for the screen to freeze before starting the transition.

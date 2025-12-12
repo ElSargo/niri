@@ -126,6 +126,7 @@ pub enum Action {
         #[knuffel(property(name = "directory"))] String,
         #[knuffel(property(name = "directory"))] Option<u64>,
     ),
+    WorkspaceAt(#[knuffel(property(name = "directory"))] String),
     DoScreenTransition(#[knuffel(property(name = "delay-ms"))] Option<u16>),
     #[knuffel(skip)]
     ConfirmScreenshot {
@@ -712,6 +713,7 @@ impl From<niri_ipc::Action> for Action {
                 directory,
                 workspace_id,
             } => Self::SetWorkingDirectory(directory, workspace_id),
+            niri_ipc::Action::WorkspaceAt { directory } => Self::WorkspaceAt(directory),
         }
     }
 }
