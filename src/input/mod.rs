@@ -718,7 +718,7 @@ impl State {
                     .flatten();
                 spawn_sh(command, Some(token), working_dir);
             }
-            Action::FocusOrSpawn(focused_workspaces_only, focused_monitor_only, items) => {
+            Action::FocusOrSpawn(focused_workspaces_only, focused_monitor_only, home, items) => {
                 let [target_app_id, spawn_args @ ..] = items.as_slice() else {
                     return;
                 };
@@ -734,12 +734,18 @@ impl State {
                 });
 
                 let Some(window) = matching_windows.map(|m| m.window.clone()).next() else {
-                    let (token, _) = self.niri.activation_state.create_external_token(None);
-                    spawn(
-                        spawn_args.to_vec(),
-                        Some(token.clone()),
-                        self.active_working_directory(),
-                    );
+                    let token = self
+                        .niri
+                        .activation_state
+                        .create_external_token(None)
+                        .0
+                        .clone();
+                    let working_dir = if home.unwrap_or(true) {
+                        self.active_working_directory()
+                    } else {
+                        None
+                    };
+                    spawn(spawn_args.to_vec(), Some(token), working_dir);
                     return;
                 };
                 self.focus_window(&window);

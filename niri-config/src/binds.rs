@@ -119,6 +119,7 @@ pub enum Action {
     FocusOrSpawn(
         #[knuffel(property(name = "focused-workspaces-only"))] Option<bool>,
         #[knuffel(property(name = "focused-monitor-only"))] Option<bool>,
+        #[knuffel(property(name = "home"))] Option<bool>,
         #[knuffel(arguments)] Vec<String>,
     ),
     SetWorkingDirectory(
