@@ -1,5 +1,7 @@
 use std::cmp::max;
+use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use niri_config::utils::MergeWith as _;
@@ -110,6 +112,8 @@ pub struct Workspace<W: LayoutElement> {
 
     /// Unique ID of this workspace.
     id: WorkspaceId,
+
+    pub working_directory: Option<Arc<str>>,
 }
 
 #[derive(Debug, Clone)]
@@ -270,6 +274,7 @@ impl<W: LayoutElement> Workspace<W> {
             name: config.map(|c| c.name.0),
             layout_config,
             id: WorkspaceId::next(),
+            working_directory: None,
         }
     }
 
@@ -334,6 +339,7 @@ impl<W: LayoutElement> Workspace<W> {
             name: config.map(|c| c.name.0),
             layout_config,
             id: WorkspaceId::next(),
+            working_directory: None,
         }
     }
 

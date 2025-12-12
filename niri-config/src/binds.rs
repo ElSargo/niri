@@ -108,12 +108,22 @@ pub enum Action {
     ToggleDebugTint,
     DebugToggleOpaqueRegions,
     DebugToggleDamage,
-    Spawn(#[knuffel(arguments)] Vec<String>),
-    SpawnSh(#[knuffel(argument)] String),
+    Spawn(
+        #[knuffel(property(name = "home"))] Option<bool>,
+        #[knuffel(arguments)] Vec<String>,
+    ),
+    SpawnSh(
+        #[knuffel(property(name = "home"))] Option<bool>,
+        #[knuffel(argument)] String,
+    ),
     FocusOrSpawn(
         #[knuffel(property(name = "focused-workspaces-only"))] Option<bool>,
         #[knuffel(property(name = "focused-monitor-only"))] Option<bool>,
         #[knuffel(arguments)] Vec<String>,
+    ),
+    SetWorkingDirectory(
+        #[knuffel(property(name = "directory"))] String,
+        #[knuffel(property(name = "directory"))] Option<u64>,
     ),
     DoScreenTransition(#[knuffel(property(name = "delay-ms"))] Option<u16>),
     #[knuffel(skip)]
@@ -398,8 +408,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::Quit { skip_confirmation } => Self::Quit(skip_confirmation),
             niri_ipc::Action::PowerOffMonitors {} => Self::PowerOffMonitors,
             niri_ipc::Action::PowerOnMonitors {} => Self::PowerOnMonitors,
-            niri_ipc::Action::Spawn { command } => Self::Spawn(command),
-            niri_ipc::Action::SpawnSh { command } => Self::SpawnSh(command),
+            niri_ipc::Action::Spawn { command, home } => Self::Spawn(home, command),
+            niri_ipc::Action::SpawnSh { command, home } => Self::SpawnSh(home, command),
             niri_ipc::Action::DoScreenTransition { delay_ms } => Self::DoScreenTransition(delay_ms),
             niri_ipc::Action::Screenshot { show_pointer, path } => {
                 Self::Screenshot(show_pointer, path)
@@ -697,6 +707,10 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SetWindowUrgent { id } => Self::SetWindowUrgent(id),
             niri_ipc::Action::UnsetWindowUrgent { id } => Self::UnsetWindowUrgent(id),
             niri_ipc::Action::LoadConfigFile {} => Self::LoadConfigFile,
+            niri_ipc::Action::SetWorkingDirectory {
+                directory,
+                workspace_id,
+            } => Self::SetWorkingDirectory(directory, workspace_id),
         }
     }
 }
@@ -890,7 +904,7 @@ where
         // even if their contents are not valid.
         let dummy = Self {
             key,
-            action: Action::Spawn(vec![]),
+            action: Action::Spawn(None, vec![]),
             repeat: true,
             cooldown: None,
             allow_when_locked: false,
@@ -908,7 +922,7 @@ where
             }
             match Action::decode_node(child, ctx) {
                 Ok(action) => {
-                    if !matches!(action, Action::Spawn(_) | Action::SpawnSh(_)) {
+                    if !matches!(action, Action::Spawn(..) | Action::SpawnSh(..)) {
                         if let Some(node) = allow_when_locked_node {
                             ctx.emit_error(DecodeError::unexpected(
                                 node,

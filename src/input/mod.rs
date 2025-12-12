@@ -2,6 +2,7 @@ use std::any::Any;
 use std::cmp::min;
 use std::collections::hash_map::Entry;
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use calloop::timer::{TimeoutAction, Timer};
@@ -44,6 +45,7 @@ use self::spatial_movement_grab::SpatialMovementGrab;
 #[cfg(feature = "dbus")]
 use crate::dbus::freedesktop_a11y::KbMonBlock;
 use crate::layout::scrolling::ScrollDirection;
+use crate::layout::workspace::WorkspaceId;
 use crate::layout::{ActivateWindow, LayoutElement as _};
 use crate::niri::{CastTarget, PointerVisibility, State};
 use crate::ui::mru::{WindowMru, WindowMruUi};
@@ -690,17 +692,33 @@ impl State {
             Action::DebugToggleDamage => {
                 self.niri.debug_toggle_damage();
             }
-            Action::Spawn(command) => {
-                let (token, _) = self.niri.activation_state.create_external_token(None);
-                spawn(command, Some(token.clone()));
+            Action::Spawn(home, command) => {
+                let token = self
+                    .niri
+                    .activation_state
+                    .create_external_token(None)
+                    .0
+                    .clone();
+
+                let working_dir = (home == Some(false))
+                    .then_some(self.active_working_directory())
+                    .flatten();
+                spawn(command, Some(token), working_dir);
             }
-            Action::SpawnSh(command) => {
-                let (token, _) = self.niri.activation_state.create_external_token(None);
-                spawn_sh(command, Some(token.clone()));
+            Action::SpawnSh(home, command) => {
+                let token = self
+                    .niri
+                    .activation_state
+                    .create_external_token(None)
+                    .0
+                    .clone();
+
+                let working_dir = (home == Some(false))
+                    .then_some(self.active_working_directory())
+                    .flatten();
+                spawn_sh(command, Some(token), working_dir);
             }
             Action::FocusOrSpawn(focused_workspaces_only, focused_monitor_only, items) => {
-                println!("{focused_workspaces_only:?} {focused_monitor_only:?} {items:?}");
-
                 let [target_app_id, spawn_args @ ..] = items.as_slice() else {
                     return;
                 };
@@ -716,13 +734,29 @@ impl State {
                 });
 
                 let Some(window) = matching_windows.map(|m| m.window.clone()).next() else {
-                    println!("Spawning: {spawn_args:?}");
                     let (token, _) = self.niri.activation_state.create_external_token(None);
-                    spawn(spawn_args.to_vec(), Some(token.clone()));
+                    spawn(
+                        spawn_args.to_vec(),
+                        Some(token.clone()),
+                        self.active_working_directory(),
+                    );
                     return;
                 };
-                println!("focusing");
                 self.focus_window(&window);
+            }
+            Action::SetWorkingDirectory(dir, workspace_id) => {
+                let w = if let Some(id) = workspace_id {
+                    self.niri
+                        .layout
+                        .workspaces_mut()
+                        .find(|w| w.id() == WorkspaceId::specific(id))
+                } else {
+                    self.niri.layout.active_workspace_mut()
+                };
+
+                if let Some(workspace) = w {
+                    workspace.working_directory = Some(dir.into());
+                }
             }
             Action::DoScreenTransition(delay_ms) => {
                 self.backend.with_primary_renderer(|renderer| {
@@ -2401,6 +2435,14 @@ impl State {
                 }
             }
         }
+    }
+
+    fn active_working_directory(&mut self) -> Option<Arc<str>> {
+        self.niri
+            .layout
+            .active_workspace()?
+            .working_directory
+            .clone()
     }
 
     fn narrow_window_candidates(
@@ -4475,7 +4517,7 @@ fn find_configured_switch_action(
     };
     switch_action
         .as_ref()
-        .map(|switch_action| Action::Spawn(switch_action.spawn.clone()))
+        .map(|switch_action| Action::Spawn(None, switch_action.spawn.clone()))
 }
 
 fn modifiers_from_state(mods: ModifiersState) -> Modifiers {

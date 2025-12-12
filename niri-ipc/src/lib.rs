@@ -200,16 +200,33 @@ pub enum Action {
     PowerOnMonitors {},
     /// Spawn a command.
     Spawn {
+        #[cfg_attr(feature = "clap", arg(required = false))]
+        /// Should this be spwawned in the home folder
+        home: Option<bool>,
         /// Command to spawn.
         #[cfg_attr(feature = "clap", arg(last = true, required = true))]
         command: Vec<String>,
     },
     /// Spawn a command through the shell.
     SpawnSh {
+        #[cfg_attr(feature = "clap", arg(required = false))]
+        /// Should this be spwawned in the home folder
+        home: Option<bool>,
+
         /// Command to run.
         #[cfg_attr(feature = "clap", arg(last = true, required = true))]
         command: String,
     },
+    /// Sets the working directory of a workspace
+    SetWorkingDirectory {
+        /// The directory to change to
+        #[cfg_attr(feature = "clap", arg(last = true, required = true))]
+        directory: String,
+        /// The workspace to mod,ify, defaults to the active
+        #[cfg_attr(feature = "clap", arg(long))]
+        workspace_id: Option<u64>,
+    },
+
     /// Do a screen transition.
     DoScreenTransition {
         /// Delay in milliseconds for the screen to freeze before starting the transition.

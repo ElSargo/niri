@@ -3,7 +3,7 @@ use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::{io, thread};
 
 use atomic::Atomic;
@@ -63,7 +63,11 @@ pub fn restore_nofile_rlimit() {
 }
 
 /// Spawns the command to run independently of the compositor.
-pub fn spawn<T: AsRef<OsStr> + Send + 'static>(command: Vec<T>, token: Option<XdgActivationToken>) {
+pub fn spawn<T: AsRef<OsStr> + Send + 'static>(
+    command: Vec<T>,
+    token: Option<XdgActivationToken>,
+    working_dir: Option<Arc<str>>,
+) {
     let _span = tracy_client::span!();
 
     if command.is_empty() {
@@ -75,7 +79,7 @@ pub fn spawn<T: AsRef<OsStr> + Send + 'static>(command: Vec<T>, token: Option<Xd
         .name("Command Spawner".to_owned())
         .spawn(move || {
             let (command, args) = command.split_first().unwrap();
-            spawn_sync(command, args, token);
+            spawn_sync(command, args, token, working_dir.as_deref());
         });
 
     if let Err(err) = res {
@@ -89,14 +93,19 @@ pub fn spawn<T: AsRef<OsStr> + Send + 'static>(command: Vec<T>, token: Option<Xd
 ///
 /// - https://github.com/swaywm/sway/blob/b3dcde8d69c3f1304b076968a7a64f54d0c958be/sway/commands/exec_always.c#L64
 /// - https://github.com/hyprwm/Hyprland/blob/1ac1ff457ab8ef1ae6a8f2ab17ee7965adfa729f/src/managers/KeybindManager.cpp#L987
-pub fn spawn_sh(command: String, token: Option<XdgActivationToken>) {
-    spawn(vec![String::from("sh"), String::from("-c"), command], token);
+pub fn spawn_sh(command: String, token: Option<XdgActivationToken>, working_dir: Option<Arc<str>>) {
+    spawn(
+        vec![String::from("sh"), String::from("-c"), command],
+        token,
+        working_dir,
+    );
 }
 
 fn spawn_sync(
     command: impl AsRef<OsStr>,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
     token: Option<XdgActivationToken>,
+    working_dir: Option<&str>,
 ) {
     let _span = tracy_client::span!();
 
@@ -118,6 +127,10 @@ fn spawn_sync(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+
+    if let Some(dir) = working_dir {
+        process.current_dir(dir);
+    }
 
     // Remove RUST_BACKTRACE and RUST_LIB_BACKTRACE from the environment if needed.
     if REMOVE_ENV_RUST_BACKTRACE.load(Ordering::Relaxed) {
